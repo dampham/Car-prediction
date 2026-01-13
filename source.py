@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
@@ -124,4 +126,5 @@ elif menu == "Dự đoán giá":
             input_num = input_enc.select_dtypes(include=[np.number])
             
             prediction = model.predict(input_num)
+
             st.success(f"Giá dự đoán của xe là: ${prediction[0]:,.2f}")
