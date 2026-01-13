@@ -1,7 +1,7 @@
-streamlit
+streamlit>=1.30
+matplotlib>=3.8
 pandas
 numpy
-matplotlib
 seaborn
 scikit-learn
 category_encoders
