@@ -1,5 +1,5 @@
 # ============================================================
-# CORE IMPORTS (KHÔNG ĐỔI LOGIC)
+# CORE IMPORTS (KHÔNG ĐỔI)
 # ============================================================
 import streamlit as st
 import pandas as pd
@@ -23,12 +23,10 @@ st.set_page_config(
 )
 
 # ============================================================
-# GLOBAL CSS – FULLSCREEN HERO IMAGE
+# GLOBAL CSS – FULLSCREEN HERO IMAGE (KHÔNG ĐỔI)
 # ============================================================
 st.markdown("""
 <style>
-
-/* Reset */
 html, body, [class*="css"] {
     margin: 0;
     padding: 0;
@@ -36,12 +34,9 @@ html, body, [class*="css"] {
     color: #f5f5f5;
     font-family: 'Segoe UI', sans-serif;
 }
-
-/* Hide Streamlit header */
 header {visibility: hidden;}
 footer {visibility: hidden;}
 
-/* HERO FULL SCREEN */
 .hero-full {
     width: 100%;
     height: 100vh;
@@ -51,12 +46,10 @@ footer {visibility: hidden;}
     background-repeat: no-repeat;
 }
 
-/* Section spacing */
 .section {
     padding: 60px 80px;
 }
 
-/* Cards */
 .card {
     background: rgba(255,255,255,0.05);
     backdrop-filter: blur(12px);
@@ -66,7 +59,6 @@ footer {visibility: hidden;}
     box-shadow: 0 10px 25px rgba(0,0,0,0.35);
 }
 
-/* Button */
 .stButton>button {
     background: linear-gradient(135deg, #ff4b4b, #ff9068);
     color: white;
@@ -80,19 +72,17 @@ footer {visibility: hidden;}
     transform: scale(1.05);
 }
 
-/* Footer */
 .footer {
     text-align: center;
     color: #777;
     padding: 40px 0;
     font-size: 14px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# HERO – IMAGE ONLY (FULL SCREEN)
+# HERO – FULL SCREEN IMAGE ONLY
 # ============================================================
 st.markdown('<div class="hero-full"></div>', unsafe_allow_html=True)
 
@@ -103,7 +93,7 @@ MODEL_PATH = "model.pkl"
 ENCODER_PATH = "encoder.pkl"
 
 # ============================================================
-# LOAD DATA (GIỮ NGUYÊN LOGIC)
+# LOAD DATA (KHÔNG ĐỔI)
 # ============================================================
 @st.cache_data
 def load_data():
@@ -135,7 +125,7 @@ def load_data():
 data = load_data()
 
 # ============================================================
-# TRAIN MODEL (GIỮ NGUYÊN)
+# TRAIN MODEL (KHÔNG ĐỔI)
 # ============================================================
 def train_and_save_model(data):
     X = data.drop(["MSRP"], axis=1)
@@ -165,7 +155,7 @@ else:
     encoder = joblib.load(ENCODER_PATH)
 
 # ============================================================
-# SIDEBAR NAV
+# SIDEBAR
 # ============================================================
 menu = st.sidebar.radio(
     "📌 Navigation",
@@ -173,16 +163,47 @@ menu = st.sidebar.radio(
 )
 
 # ============================================================
-# OVERVIEW
+# OVERVIEW + DATASET FILTER (TÍNH NĂNG MỚI – KHÔNG ĐỘNG CŨ)
 # ============================================================
 if menu == "Overview":
     st.markdown('<div class="section">', unsafe_allow_html=True)
     st.markdown("## 📊 Dataset Overview")
-    st.dataframe(data.head(15))
+
+    filtered_data = data.copy()
+
+    with st.expander("🔎 Filter by columns", expanded=True):
+        for col in filtered_data.columns:
+            if col == "MSRP":
+                continue
+
+            if filtered_data[col].dtype == "object":
+                options = sorted(filtered_data[col].dropna().unique())
+                selected = st.multiselect(col, options, default=options)
+                if selected:
+                    filtered_data = filtered_data[filtered_data[col].isin(selected)]
+            else:
+                min_val = float(filtered_data[col].min())
+                max_val = float(filtered_data[col].max())
+                selected_range = st.slider(
+                    col, min_val, max_val, (min_val, max_val)
+                )
+                filtered_data = filtered_data[
+                    (filtered_data[col] >= selected_range[0]) &
+                    (filtered_data[col] <= selected_range[1])
+                ]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Rows", f"{len(filtered_data):,}")
+    col2.metric("Avg MSRP", f"${filtered_data['MSRP'].mean():,.0f}")
+    col3.metric("Manufacturers", filtered_data["Make"].nunique())
+
+    st.markdown("### 📋 Filtered Dataset Preview")
+    st.dataframe(filtered_data, use_container_width=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
-# EDA
+# EDA (KHÔNG ĐỔI)
 # ============================================================
 elif menu == "EDA Analysis":
     st.markdown('<div class="section">', unsafe_allow_html=True)
@@ -207,7 +228,7 @@ elif menu == "EDA Analysis":
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
-# PRICE PREDICTION (KHÔNG ĐỔI LOGIC)
+# PRICE PREDICTION (KHÔNG ĐỔI)
 # ============================================================
 elif menu == "Price Prediction":
     st.markdown('<div class="section">', unsafe_allow_html=True)
@@ -249,7 +270,6 @@ elif menu == "Price Prediction":
         input_num = input_enc.select_dtypes(include=[np.number])
 
         price = model.predict(input_num)[0]
-
         st.success(f"💰 Estimated Price: ${price:,.2f}")
 
     st.markdown('</div>', unsafe_allow_html=True)
