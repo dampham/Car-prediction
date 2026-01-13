@@ -1,19 +1,23 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 import joblib
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from category_encoders import TargetEncoder
+from sklearn.preprocessing import MinMaxScaler
 
 # =====================================================
-# PAGE CONFIG (GIỮ NGUYÊN)
+# PAGE CONFIG
 # =====================================================
-st.set_page_config(
-    page_title="Car Price Prediction",
-    page_icon="🚗",
-    layout="wide"
-)
+st.set_page_config(page_title="Dự đoán giá xe ô tô", layout="wide")
 
 # =====================================================
-# CSS (GIỮ NGUYÊN)
+# UI – CSS (CHỈ THÊM, KHÔNG ĐỤNG LOGIC)
 # =====================================================
 st.markdown("""
 <style>
@@ -21,10 +25,11 @@ st.markdown("""
     background-image: url("https://img.tripi.vn/cdn-cgi/image/width=1600/https://gcs.tripi.vn/public-tripi/tripi-feed/img/482791EyF/anh-mo-ta.png");
     background-size: cover;
     background-position: center;
-    height: 75vh;
+    height: 65vh;
     display: flex;
     align-items: center;
     padding-left: 80px;
+    margin-bottom: 40px;
 }
 .hero-box {
     background: rgba(0,0,0,0.6);
@@ -34,98 +39,155 @@ st.markdown("""
 }
 .hero h1 {
     color: white;
-    font-size: 48px;
+    font-size: 46px;
+    font-weight: 700;
 }
 .hero p {
     color: #dddddd;
     font-size: 18px;
+    margin-top: 15px;
+}
+.sidebar .sidebar-content {
+    background-color: #f7f7f7;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# HERO (GIỮ NGUYÊN)
+# HERO UI
 # =====================================================
 st.markdown("""
 <div class="hero">
     <div class="hero-box">
-        <h1>The legacy never fades.</h1>
-        <p>Stable ML deployment for car price prediction</p>
+        <h1>Car Price Prediction</h1>
+        <p>
+            Ứng dụng Machine Learning dự đoán giá xe ô tô<br>
+            dựa trên dữ liệu thực tế
+        </p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# LOAD ASSETS
-# =====================================================
-@st.cache_resource
-def load_assets():
-    model = joblib.load("model.pkl")
-    encoder = joblib.load("encoder.pkl")
-    data = pd.read_csv("data.csv")
-    return model, encoder, data
-
-model, encoder, data = load_assets()
+MODEL_PATH = 'model.pkl'
+ENCODER_PATH = 'encoder.pkl'
 
 # =====================================================
-# FORM (GIỮ NGUYÊN)
+# LOAD & PREPROCESS DATA (GIỮ NGUYÊN)
 # =====================================================
-st.markdown("## 🚘 Vehicle Information")
+@st.cache_data
+def load_data():
+    if not os.path.exists('data.csv'):
+        st.error("Không tìm thấy file data.csv!")
+        return pd.DataFrame()
+    
+    data = pd.read_csv('data.csv')
+    data = data[data['highway MPG'] < 60]
+    data = data[data['city mpg'] < 40]
+    data['MSRP'] = pd.to_numeric(data['MSRP'].replace('[$,]', '', regex=True), errors='coerce')
+    data['Engine HP'] = pd.to_numeric(data['Engine HP'], errors='coerce')
+    data = data.dropna(subset=['Engine HP', 'MSRP'])
+    data['Number of Doors'].fillna(data['Number of Doors'].median(), inplace=True)
+    data['Engine Fuel Type'].fillna(data['Engine Fuel Type'].mode()[0], inplace=True)
+    data['Engine Cylinders'].fillna(4, inplace=True)
+    if 'Market Category' in data.columns:
+        data.drop(['Market Category'], axis=1, inplace=True)
+    data['Years Of Manufacture'] = 2025 - data['Year']
+    return data
 
-with st.form("predict_form"):
-    make = st.selectbox("Make", sorted(data["Make"].dropna().unique()))
-    model_name = st.selectbox(
-        "Model",
-        sorted(data[data["Make"] == make]["Model"].dropna().unique())
+data = load_data()
+
+# =====================================================
+# TRAIN & SAVE MODEL (GIỮ NGUYÊN)
+# =====================================================
+def train_and_save_model(data):
+    X = data.drop(['MSRP'], axis=1)
+    y = data['MSRP']
+    
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=100
     )
-    year = st.slider("Year", 1990, 2025, 2018)
-    hp = st.number_input("Engine HP", 50, 1500, int(data["Engine HP"].median()))
-    fuel = st.selectbox(
-        "Engine Fuel Type",
-        data["Engine Fuel Type"].dropna().unique()
-    )
+    
+    te = TargetEncoder(cols=['Make', 'Model'])
+    X_train_enc = te.fit_transform(X_train, y_train)
+    X_train_num = X_train_enc.select_dtypes(include=[np.number])
+    
+    model = GradientBoostingRegressor(n_estimators=100, random_state=100)
+    model.fit(X_train_num, y_train)
+    
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(te, ENCODER_PATH)
+    return model, te
 
-    submit = st.form_submit_button("🔮 Predict Price")
-
-# =====================================================
-# PREDICTION LOGIC (ĐÃ CHỈNH – GIỐNG FILE TRAIN)
-# =====================================================
-if submit:
-    # 1️⃣ TẠO 1 DÒNG MẪU CÓ ĐỦ CỘT NHƯ LÚC TRAIN
-    input_df = data.drop(columns=["MSRP"]).iloc[:1].copy()
-
-    # 2️⃣ ĐIỀN GIÁ TRỊ MẶC ĐỊNH (median / mode)
-    for col in input_df.columns:
-        if input_df[col].dtype == "object":
-            input_df[col] = data[col].mode()[0]
-        else:
-            input_df[col] = data[col].median()
-
-    # 3️⃣ GHI ĐÈ GIÁ TRỊ USER NHẬP
-    input_df["Make"] = make
-    input_df["Model"] = model_name
-    input_df["Year"] = year
-    input_df["Engine HP"] = hp
-    input_df["Engine Fuel Type"] = fuel
-    input_df["Years Of Manufacture"] = 2025 - year
-
-    # 4️⃣ ENCODE (KHÔNG BAO GIỜ LỖI DIMENSION)
-    input_enc = encoder.transform(input_df)
-
-    # 5️⃣ LẤY CỘT SỐ (GIỐNG LÚC TRAIN)
-    input_num = input_enc.select_dtypes(include=[np.number])
-
-    # 6️⃣ PREDICT
-    price = model.predict(input_num)[0]
-
-    st.success(f"💰 Estimated Price: ${price:,.2f}")
+if not os.path.exists(MODEL_PATH):
+    with st.status("🚀 Lần đầu khởi chạy: Đang huấn luyện mô hình..."):
+        model, encoder = train_and_save_model(data)
+        st.success("Đã huấn luyện và lưu model.pkl thành công!")
+else:
+    model = joblib.load(MODEL_PATH)
+    encoder = joblib.load(ENCODER_PATH)
 
 # =====================================================
-# FOOTER (GIỮ NGUYÊN)
+# APP CONTENT
+# =====================================================
+st.title("🚗 Ứng dụng Dự đoán và Phân tích Giá Xe")
+
+menu = st.sidebar.selectbox(
+    "📌 Chọn chức năng",
+    ["Tổng quan dữ liệu", "Phân tích (EDA)", "Dự đoán giá"]
+)
+
+if menu == "Tổng quan dữ liệu":
+    st.subheader("📊 Xem trước dữ liệu")
+    st.dataframe(data.head(10))
+
+elif menu == "Phân tích (EDA)":
+    st.subheader("📈 Phân tích xu hướng giá")
+    fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+    data.groupby('Year')['MSRP'].mean().plot(kind='bar', ax=ax[0])
+    sns.scatterplot(data=data, x='Engine HP', y='MSRP', ax=ax[1], alpha=0.5)
+    st.pyplot(fig)
+
+elif menu == "Dự đoán giá":
+    st.subheader("🤖 Dự đoán giá xe")
+    st.info("Trạng thái: Đã tải mô hình từ file `model.pkl`")
+    
+    with st.form("predict_form"):
+        col1, col2 = st.columns(2)
+        make = col1.selectbox("Hãng xe", sorted(data['Make'].unique()))
+        model_name = col2.selectbox(
+            "Dòng xe",
+            sorted(data[data['Make'] == make]['Model'].unique())
+        )
+        hp = col1.number_input("Mã lực (HP)", value=int(data['Engine HP'].median()))
+        year = col2.number_input("Năm sản xuất", min_value=1990, max_value=2025, value=2015)
+        
+        if st.form_submit_button("🚀 Dự đoán ngay"):
+            input_df = data.drop(['MSRP'], axis=1).iloc[:1].copy()
+            
+            for col in input_df.columns:
+                if input_df[col].dtype == 'object':
+                    input_df[col] = data[col].mode()[0]
+                else:
+                    input_df[col] = data[col].median()
+
+            input_df['Make'] = make
+            input_df['Model'] = model_name
+            input_df['Engine HP'] = hp
+            input_df['Year'] = year
+            input_df['Years Of Manufacture'] = 2025 - year
+            
+            input_enc = encoder.transform(input_df)
+            input_num = input_enc.select_dtypes(include=[np.number])
+            prediction = model.predict(input_num)
+
+            st.success(f"💰 Giá dự đoán của xe là: ${prediction[0]:,.2f}")
+
+# =====================================================
+# FOOTER
 # =====================================================
 st.markdown("""
 <hr>
 <center style="color:gray">
-Car Price Prediction • Stable ML Deployment
+© 2026 • Car Price Prediction App • Streamlit & Machine Learning
 </center>
 """, unsafe_allow_html=True)
