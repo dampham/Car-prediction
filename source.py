@@ -4,7 +4,7 @@ import numpy as np
 import joblib
 
 # =====================================================
-# PAGE CONFIG
+# PAGE CONFIG (GIỮ NGUYÊN)
 # =====================================================
 st.set_page_config(
     page_title="Car Price Prediction",
@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# CSS
+# CSS (GIỮ NGUYÊN)
 # =====================================================
 st.markdown("""
 <style>
@@ -44,7 +44,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================================
-# HERO
+# HERO (GIỮ NGUYÊN)
 # =====================================================
 st.markdown("""
 <div class="hero">
@@ -68,25 +68,18 @@ def load_assets():
 model, encoder, data = load_assets()
 
 # =====================================================
-# GET ENCODER INPUT COLUMNS (CỰC KỲ QUAN TRỌNG)
-# =====================================================
-if hasattr(encoder, "feature_names_in_"):
-    encoder_input_cols = list(encoder.feature_names_in_)
-elif hasattr(encoder, "cols"):
-    encoder_input_cols = list(encoder.cols)
-else:
-    st.error("❌ Cannot determine encoder input columns")
-    st.stop()
-
-# =====================================================
-# FORM (GIẢM THUỘC TÍNH)
+# FORM (GIỮ NGUYÊN)
 # =====================================================
 st.markdown("## 🚘 Vehicle Information")
 
 with st.form("predict_form"):
     make = st.selectbox("Make", sorted(data["Make"].dropna().unique()))
+    model_name = st.selectbox(
+        "Model",
+        sorted(data[data["Make"] == make]["Model"].dropna().unique())
+    )
     year = st.slider("Year", 1990, 2025, 2018)
-    hp = st.number_input("Engine HP", 50, 1500, 250)
+    hp = st.number_input("Engine HP", 50, 1500, int(data["Engine HP"].median()))
     fuel = st.selectbox(
         "Engine Fuel Type",
         data["Engine Fuel Type"].dropna().unique()
@@ -95,46 +88,40 @@ with st.form("predict_form"):
     submit = st.form_submit_button("🔮 Predict Price")
 
 # =====================================================
-# PREDICTION (100% SAFE)
+# PREDICTION LOGIC (ĐÃ CHỈNH – GIỐNG FILE TRAIN)
 # =====================================================
 if submit:
-    # Tạo input đúng CỘT encoder cần
-    input_df = pd.DataFrame(columns=encoder_input_cols)
+    # 1️⃣ TẠO 1 DÒNG MẪU CÓ ĐỦ CỘT NHƯ LÚC TRAIN
+    input_df = data.drop(columns=["MSRP"]).iloc[:1].copy()
 
-    for col in encoder_input_cols:
-        if col == "Make":
-            input_df.loc[0, col] = make
-        elif col == "Year":
-            input_df.loc[0, col] = year
-        elif col == "Engine HP":
-            input_df.loc[0, col] = hp
-        elif col == "Engine Fuel Type":
-            input_df.loc[0, col] = fuel
-        elif col == "Years Of Manufacture":
-            input_df.loc[0, col] = 2025 - year
+    # 2️⃣ ĐIỀN GIÁ TRỊ MẶC ĐỊNH (median / mode)
+    for col in input_df.columns:
+        if input_df[col].dtype == "object":
+            input_df[col] = data[col].mode()[0]
         else:
-            # Fill mặc định từ data train
-            if data[col].dtype == "object":
-                input_df.loc[0, col] = data[col].mode()[0]
-            else:
-                input_df.loc[0, col] = data[col].median()
+            input_df[col] = data[col].median()
 
-    # Encode
-    input_encoded = encoder.transform(input_df)
-    input_encoded = input_encoded.select_dtypes(include=np.number)
+    # 3️⃣ GHI ĐÈ GIÁ TRỊ USER NHẬP
+    input_df["Make"] = make
+    input_df["Model"] = model_name
+    input_df["Year"] = year
+    input_df["Engine HP"] = hp
+    input_df["Engine Fuel Type"] = fuel
+    input_df["Years Of Manufacture"] = 2025 - year
 
-    # Align with model
-    input_encoded = input_encoded.reindex(
-        columns=model.feature_names_in_,
-        fill_value=0
-    )
+    # 4️⃣ ENCODE (KHÔNG BAO GIỜ LỖI DIMENSION)
+    input_enc = encoder.transform(input_df)
 
-    price = model.predict(input_encoded)[0]
+    # 5️⃣ LẤY CỘT SỐ (GIỐNG LÚC TRAIN)
+    input_num = input_enc.select_dtypes(include=[np.number])
+
+    # 6️⃣ PREDICT
+    price = model.predict(input_num)[0]
 
     st.success(f"💰 Estimated Price: ${price:,.2f}")
 
 # =====================================================
-# FOOTER
+# FOOTER (GIỮ NGUYÊN)
 # =====================================================
 st.markdown("""
 <hr>
