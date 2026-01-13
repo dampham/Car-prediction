@@ -34,53 +34,29 @@ st.markdown("""
 }
 .hero h1 {
     color: white;
-    font-size: 50px;
-    font-weight: 700;
+    font-size: 48px;
 }
 .hero p {
     color: #dddddd;
     font-size: 18px;
-    margin-top: 15px;
-}
-.hero button {
-    margin-top: 25px;
-    padding: 14px 30px;
-    background: white;
-    border: none;
-    font-size: 16px;
-    border-radius: 6px;
-}
-.section {
-    padding: 60px 0px;
-}
-.card {
-    background: #111;
-    padding: 30px;
-    border-radius: 12px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# HERO SECTION
+# HERO
 # =====================================================
 st.markdown("""
 <div class="hero">
     <div class="hero-box">
         <h1>The legacy never fades.</h1>
-        <p>
-            Predict car prices using machine learning<br>
-            with stable deployment and clean design.
-        </p>
-        <a href="#predict">
-            <button>Start Prediction</button>
-        </a>
+        <p>Stable ML deployment for car price prediction</p>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# LOAD MODEL & DATA
+# LOAD ASSETS
 # =====================================================
 @st.cache_resource
 def load_assets():
@@ -92,115 +68,77 @@ def load_assets():
 model, encoder, data = load_assets()
 
 # =====================================================
-# TEMPLATE (CỰC KỲ QUAN TRỌNG)
+# GET ENCODER INPUT COLUMNS (CỰC KỲ QUAN TRỌNG)
 # =====================================================
-X_template = data.drop(columns=["MSRP"])
+if hasattr(encoder, "feature_names_in_"):
+    encoder_input_cols = list(encoder.feature_names_in_)
+elif hasattr(encoder, "cols"):
+    encoder_input_cols = list(encoder.cols)
+else:
+    st.error("❌ Cannot determine encoder input columns")
+    st.stop()
 
 # =====================================================
-# FORM
+# FORM (GIẢM THUỘC TÍNH)
 # =====================================================
-st.markdown("<div id='predict'></div>", unsafe_allow_html=True)
 st.markdown("## 🚘 Vehicle Information")
 
 with st.form("predict_form"):
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        make = st.selectbox("Make", sorted(data["Make"].dropna().unique()))
-        year = st.slider("Year", 1990, 2025, 2018)
-        fuel = st.selectbox("Engine Fuel Type", data["Engine Fuel Type"].dropna().unique())
-
-    with c2:
-        hp = st.number_input("Engine HP", 50, 1500, 250)
-        cyl = st.selectbox(
-            "Engine Cylinders",
-            sorted(data["Engine Cylinders"].dropna().unique())
-        )
-        transmission = st.selectbox(
-            "Transmission Type",
-            data["Transmission Type"].dropna().unique()
-        )
-
-    with c3:
-        drive = st.selectbox(
-            "Driven Wheels",
-            data["Driven_Wheels"].dropna().unique()
-        )
-        size = st.selectbox(
-            "Vehicle Size",
-            data["Vehicle Size"].dropna().unique()
-        )
-        style = st.selectbox(
-            "Vehicle Style",
-            data["Vehicle Style"].dropna().unique()
-        )
-
-    mpg1, mpg2, pop = st.columns(3)
-    with mpg1:
-        highway = st.number_input("Highway MPG", 5, 80, 30)
-    with mpg2:
-        city = st.number_input("City MPG", 5, 60, 22)
-    with pop:
-        popularity = st.slider("Popularity", 1, 5000, 1000)
+    make = st.selectbox("Make", sorted(data["Make"].dropna().unique()))
+    year = st.slider("Year", 1990, 2025, 2018)
+    hp = st.number_input("Engine HP", 50, 1500, 250)
+    fuel = st.selectbox(
+        "Engine Fuel Type",
+        data["Engine Fuel Type"].dropna().unique()
+    )
 
     submit = st.form_submit_button("🔮 Predict Price")
 
 # =====================================================
-# PREDICTION LOGIC (STABLE – NO ERROR)
+# PREDICTION (100% SAFE)
 # =====================================================
 if submit:
-    # Copy full template to keep all columns
-    input_df = X_template.copy()
+    # Tạo input đúng CỘT encoder cần
+    input_df = pd.DataFrame(columns=encoder_input_cols)
 
-    # User-controlled features
-    input_df["Make"] = make
-    input_df["Year"] = year
-    input_df["Engine Fuel Type"] = fuel
-    input_df["Engine HP"] = hp
-    input_df["Engine Cylinders"] = cyl
-    input_df["Transmission Type"] = transmission
-    input_df["Driven_Wheels"] = drive
-    input_df["Vehicle Size"] = size
-    input_df["Vehicle Style"] = style
-    input_df["highway MPG"] = highway
-    input_df["city mpg"] = city
-    input_df["Popularity"] = popularity
-    input_df["Years Of Manufacture"] = 2025 - year
-
-    # Fill remaining columns safely
-    for col in input_df.columns:
-        if input_df[col].isna().any():
-            if input_df[col].dtype == "object":
-                input_df[col].fillna(data[col].mode()[0], inplace=True)
+    for col in encoder_input_cols:
+        if col == "Make":
+            input_df.loc[0, col] = make
+        elif col == "Year":
+            input_df.loc[0, col] = year
+        elif col == "Engine HP":
+            input_df.loc[0, col] = hp
+        elif col == "Engine Fuel Type":
+            input_df.loc[0, col] = fuel
+        elif col == "Years Of Manufacture":
+            input_df.loc[0, col] = 2025 - year
+        else:
+            # Fill mặc định từ data train
+            if data[col].dtype == "object":
+                input_df.loc[0, col] = data[col].mode()[0]
             else:
-                input_df[col].fillna(data[col].median(), inplace=True)
+                input_df.loc[0, col] = data[col].median()
 
     # Encode
     input_encoded = encoder.transform(input_df)
     input_encoded = input_encoded.select_dtypes(include=np.number)
 
-    # Align features with model
+    # Align with model
     input_encoded = input_encoded.reindex(
         columns=model.feature_names_in_,
         fill_value=0
     )
 
-    # Predict
     price = model.predict(input_encoded)[0]
 
-    st.markdown("---")
-    st.markdown("## 💰 Estimated Price")
-    st.success(f"${price:,.2f}")
+    st.success(f"💰 Estimated Price: ${price:,.2f}")
 
 # =====================================================
 # FOOTER
 # =====================================================
 st.markdown("""
 <hr>
-<center>
-<p style="color:gray">
-Car Price Prediction System © 2026<br>
-Machine Learning • Streamlit
-</p>
+<center style="color:gray">
+Car Price Prediction • Stable ML Deployment
 </center>
 """, unsafe_allow_html=True)
