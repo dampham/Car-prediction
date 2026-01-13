@@ -14,7 +14,7 @@ from sklearn.preprocessing import MinMaxScaler
 # =====================================================
 # PAGE CONFIG
 # =====================================================
-st.set_page_config(page_title="Dự đoán giá xe ô tô", layout="wide")
+st.set_page_config(page_title="Car Prices Prediction.", layout="wide")
 
 # =====================================================
 # UI – CSS (CHỈ THÊM, KHÔNG ĐỤNG LOGIC)
@@ -61,8 +61,8 @@ st.markdown("""
     <div class="hero-box">
         <h1>Car Price Prediction</h1>
         <p>
-            Ứng dụng Machine Learning dự đoán giá xe ô tô<br>
-            dựa trên dữ liệu thực tế
+            Machine learning application predicts car prices.<br>
+            based on actual data
         </p>
     </div>
 </div>
@@ -129,26 +129,26 @@ else:
 # =====================================================
 # APP CONTENT
 # =====================================================
-st.title("🚗 Ứng dụng Dự đoán và Phân tích Giá Xe")
+st.title("🚗 Car Price Prediction and Analysis App.")
 
 menu = st.sidebar.selectbox(
-    "📌 Chọn chức năng",
-    ["Tổng quan dữ liệu", "Phân tích (EDA)", "Dự đoán giá"]
+    "📌 Select function",
+    ["Data Overview", "Analysis (EDA)", "Price prediction"]
 )
 
-if menu == "Tổng quan dữ liệu":
-    st.subheader("📊 Xem trước dữ liệu")
+if menu == "Data Overview":
+    st.subheader("📊 Preview data")
     st.dataframe(data.head(10))
 
-elif menu == "Phân tích (EDA)":
-    st.subheader("📈 Phân tích xu hướng giá")
+elif menu == "Analysis (EDA)":
+    st.subheader("📈 Price trend analysis")
     fig, ax = plt.subplots(1, 2, figsize=(15, 5))
     data.groupby('Year')['MSRP'].mean().plot(kind='bar', ax=ax[0])
     sns.scatterplot(data=data, x='Engine HP', y='MSRP', ax=ax[1], alpha=0.5)
     st.pyplot(fig)
 
-elif menu == "Dự đoán giá":
-    st.subheader("🤖 Dự đoán giá xe")
+elif menu == "Price prediction":
+    st.subheader("🤖 Predict car prices")
     st.info("Trạng thái: Đã tải mô hình từ file `model.pkl`")
     
     with st.form("predict_form"):
@@ -158,10 +158,10 @@ elif menu == "Dự đoán giá":
             "Dòng xe",
             sorted(data[data['Make'] == make]['Model'].unique())
         )
-        hp = col1.number_input("Mã lực (HP)", value=int(data['Engine HP'].median()))
-        year = col2.number_input("Năm sản xuất", min_value=1990, max_value=2025, value=2015)
+        hp = col1.number_input("Horsepower (HP)", value=int(data['Engine HP'].median()))
+        year = col2.number_input("Year of manufacture", min_value=1990, max_value=2025, value=2015)
         
-        if st.form_submit_button("🚀 Dự đoán ngay"):
+        if st.form_submit_button("🚀 Predict now"):
             input_df = data.drop(['MSRP'], axis=1).iloc[:1].copy()
             
             for col in input_df.columns:
@@ -180,7 +180,7 @@ elif menu == "Dự đoán giá":
             input_num = input_enc.select_dtypes(include=[np.number])
             prediction = model.predict(input_num)
 
-            st.success(f"💰 Giá dự đoán của xe là: ${prediction[0]:,.2f}")
+            st.success(f"💰 The predicted price of the car is: ${prediction[0]:,.2f}")
 
 # =====================================================
 # FOOTER
@@ -191,3 +191,4 @@ st.markdown("""
 © 2026 • Car Price Prediction App • Streamlit & Machine Learning
 </center>
 """, unsafe_allow_html=True)
+
