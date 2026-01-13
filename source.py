@@ -1,5 +1,5 @@
 # ============================================================
-# CORE IMPORTS (GIỮ NGUYÊN LOGIC)
+# CORE IMPORTS (KHÔNG ĐỔI LOGIC)
 # ============================================================
 import streamlit as st
 import pandas as pd
@@ -10,119 +10,81 @@ import joblib
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from category_encoders import TargetEncoder
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Car Price Prediction System",
+    page_title="Car Price Prediction",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ============================================================
-# GLOBAL STYLE (GLASSMORPHISM + MODERN UI)
+# GLOBAL CSS – FULLSCREEN HERO IMAGE
 # ============================================================
 st.markdown("""
 <style>
 
-/* ---------- GLOBAL ---------- */
+/* Reset */
 html, body, [class*="css"] {
-    font-family: 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 0;
     background-color: #0e1117;
     color: #f5f5f5;
+    font-family: 'Segoe UI', sans-serif;
 }
 
-/* ---------- HERO ---------- */
-.hero {
+/* Hide Streamlit header */
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* HERO FULL SCREEN */
+.hero-full {
+    width: 100%;
+    height: 100vh;
     background-image: url("https://img.tripi.vn/cdn-cgi/image/width=1600/https://gcs.tripi.vn/public-tripi/tripi-feed/img/482791EyF/anh-mo-ta.png");
     background-size: cover;
     background-position: center;
-    height: 85vh;
-    display: flex;
-    align-items: center;
-    padding-left: 80px;
+    background-repeat: no-repeat;
 }
 
-.hero-box {
-    background: rgba(0,0,0,0.65);
-    backdrop-filter: blur(10px);
-    padding: 60px;
-    border-radius: 18px;
-    max-width: 650px;
-    animation: fadeIn 1.2s ease-in-out;
+/* Section spacing */
+.section {
+    padding: 60px 80px;
 }
 
-.hero h1 {
-    font-size: 52px;
-    font-weight: 700;
-    color: #ffffff;
-}
-
-.hero p {
-    font-size: 18px;
-    color: #dddddd;
-    margin-top: 12px;
-}
-
-/* ---------- ANIMATION ---------- */
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(30px);}
-    to {opacity: 1; transform: translateY(0);}
-}
-
-/* ---------- CARD ---------- */
-.glass-card {
-    background: rgba(255,255,255,0.06);
+/* Cards */
+.card {
+    background: rgba(255,255,255,0.05);
     backdrop-filter: blur(12px);
     border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    padding: 30px;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.35);
 }
 
-/* ---------- KPI ---------- */
-.kpi {
-    text-align: center;
-    padding: 25px;
-    border-radius: 14px;
-    background: rgba(255,255,255,0.05);
-}
-
-.kpi h2 {
-    font-size: 32px;
-    margin: 0;
-}
-
-.kpi p {
-    color: #aaaaaa;
-    margin-top: 5px;
-}
-
-/* ---------- BUTTON ---------- */
+/* Button */
 .stButton>button {
     background: linear-gradient(135deg, #ff4b4b, #ff9068);
     color: white;
     border-radius: 12px;
-    padding: 0.7em 2em;
+    padding: 0.7em 2.2em;
     border: none;
     font-size: 16px;
     transition: 0.3s;
 }
-
 .stButton>button:hover {
     transform: scale(1.05);
-    background: linear-gradient(135deg, #ff9068, #ff4b4b);
 }
 
-/* ---------- FOOTER ---------- */
+/* Footer */
 .footer {
     text-align: center;
     color: #777;
-    margin-top: 80px;
+    padding: 40px 0;
     font-size: 14px;
 }
 
@@ -130,16 +92,9 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 # ============================================================
-# HERO SECTION
+# HERO – IMAGE ONLY (FULL SCREEN)
 # ============================================================
-st.markdown("""
-<div class="hero">
-    <div class="hero-box">
-        <h1>The legacy never fades.</h1>
-        <p>Professional car price prediction system powered by Machine Learning.</p>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="hero-full"></div>', unsafe_allow_html=True)
 
 # ============================================================
 # MODEL PATH
@@ -148,7 +103,7 @@ MODEL_PATH = "model.pkl"
 ENCODER_PATH = "encoder.pkl"
 
 # ============================================================
-# LOAD DATA (GIỮ NGUYÊN)
+# LOAD DATA (GIỮ NGUYÊN LOGIC)
 # ============================================================
 @st.cache_data
 def load_data():
@@ -180,13 +135,13 @@ def load_data():
 data = load_data()
 
 # ============================================================
-# TRAINING LOGIC (GIỮ NGUYÊN)
+# TRAIN MODEL (GIỮ NGUYÊN)
 # ============================================================
 def train_and_save_model(data):
     X = data.drop(["MSRP"], axis=1)
     y = data["MSRP"]
 
-    X_train, X_test, y_train, y_test = train_test_split(
+    X_train, _, y_train, _ = train_test_split(
         X, y, test_size=0.2, random_state=100
     )
 
@@ -210,7 +165,7 @@ else:
     encoder = joblib.load(ENCODER_PATH)
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR NAV
 # ============================================================
 menu = st.sidebar.radio(
     "📌 Navigation",
@@ -221,51 +176,41 @@ menu = st.sidebar.radio(
 # OVERVIEW
 # ============================================================
 if menu == "Overview":
+    st.markdown('<div class="section">', unsafe_allow_html=True)
     st.markdown("## 📊 Dataset Overview")
-
-    col1, col2, col3 = st.columns(3)
-    col1.markdown(
-        f"<div class='kpi'><h2>{len(data):,}</h2><p>Total Cars</p></div>",
-        unsafe_allow_html=True
-    )
-    col2.markdown(
-        f"<div class='kpi'><h2>{data['Make'].nunique()}</h2><p>Manufacturers</p></div>",
-        unsafe_allow_html=True
-    )
-    col3.markdown(
-        f"<div class='kpi'><h2>${data['MSRP'].mean():,.0f}</h2><p>Avg Price</p></div>",
-        unsafe_allow_html=True
-    )
-
-    st.markdown("### Preview Data")
     st.dataframe(data.head(15))
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
 # EDA
 # ============================================================
 elif menu == "EDA Analysis":
+    st.markdown('<div class="section">', unsafe_allow_html=True)
     st.markdown("## 📈 Exploratory Data Analysis")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         fig, ax = plt.subplots()
         sns.scatterplot(data=data, x="Engine HP", y="MSRP", alpha=0.4)
         st.pyplot(fig)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         fig, ax = plt.subplots()
         data.groupby("Year")["MSRP"].mean().plot(kind="line")
         st.pyplot(fig)
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
-# PREDICTION (LOGIC GIỮ NGUYÊN)
+# PRICE PREDICTION (KHÔNG ĐỔI LOGIC)
 # ============================================================
 elif menu == "Price Prediction":
+    st.markdown('<div class="section">', unsafe_allow_html=True)
     st.markdown("## 🤖 Predict Car Price")
 
     with st.form("prediction_form"):
@@ -306,6 +251,8 @@ elif menu == "Price Prediction":
         price = model.predict(input_num)[0]
 
         st.success(f"💰 Estimated Price: ${price:,.2f}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
 # FOOTER
