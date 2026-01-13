@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import joblib
 import os
 from sklearn.model_selection import train_test_split
@@ -11,10 +9,89 @@ from category_encoders import TargetEncoder
 
 # ================= PAGE CONFIG =================
 st.set_page_config(
-    page_title="Car Price Prediction",
+    page_title="AMG Car Price Prediction",
     page_icon="🚗",
     layout="wide"
 )
+
+# ================= CUSTOM CSS =================
+st.markdown("""
+<style>
+.block-container { padding: 0 !important; }
+html, body, [class*="css"] {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ===== HERO ===== */
+.hero {
+    position: relative;
+    height: 85vh;
+    background-image: url("assets/hero.jpg");
+    background-size: cover;
+    background-position: center;
+}
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to right,
+        rgba(0,0,0,0.8),
+        rgba(0,0,0,0.2)
+    );
+}
+.hero-content {
+    position: absolute;
+    top: 30%;
+    left: 6%;
+    max-width: 520px;
+    color: white;
+}
+.hero h1 {
+    font-size: 46px;
+    font-weight: 600;
+    margin-bottom: 14px;
+}
+.hero p {
+    font-size: 18px;
+    opacity: 0.85;
+}
+.hero-btn {
+    margin-top: 22px;
+    padding: 12px 28px;
+    background: white;
+    color: black;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ===== SECTIONS ===== */
+.section {
+    background: #111;
+    padding: 60px 6%;
+    color: #eee;
+}
+
+/* ===== CARDS ===== */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+.card {
+    background: #1c1c1c;
+    padding: 24px;
+    border-radius: 6px;
+}
+.card h3 {
+    margin-bottom: 10px;
+}
+.card p {
+    font-size: 14px;
+    opacity: 0.75;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ================= CONSTANTS =================
 MODEL_PATH = "model.pkl"
@@ -23,24 +100,24 @@ ENCODER_PATH = "encoder.pkl"
 # ================= DATA =================
 @st.cache_data
 def load_data():
-    data = pd.read_csv("data.csv")
-    data = data[data['highway MPG'] < 60]
-    data = data[data['city mpg'] < 40]
-    data['MSRP'] = pd.to_numeric(data['MSRP'].replace('[$,]', '', regex=True))
-    data['Engine HP'] = pd.to_numeric(data['Engine HP'])
-    data.dropna(subset=['Engine HP', 'MSRP'], inplace=True)
-    data['Number of Doors'].fillna(data['Number of Doors'].median(), inplace=True)
-    data['Engine Fuel Type'].fillna(data['Engine Fuel Type'].mode()[0], inplace=True)
-    data['Engine Cylinders'].fillna(4, inplace=True)
-    if 'Market Category' in data.columns:
-        data.drop('Market Category', axis=1, inplace=True)
-    data['Years Of Manufacture'] = 2025 - data['Year']
-    return data
+    df = pd.read_csv("data.csv")
+    df = df[df['highway MPG'] < 60]
+    df = df[df['city mpg'] < 40]
+    df['MSRP'] = pd.to_numeric(df['MSRP'].replace('[$,]', '', regex=True))
+    df['Engine HP'] = pd.to_numeric(df['Engine HP'])
+    df.dropna(subset=['Engine HP', 'MSRP'], inplace=True)
+    df['Number of Doors'].fillna(df['Number of Doors'].median(), inplace=True)
+    df['Engine Fuel Type'].fillna(df['Engine Fuel Type'].mode()[0], inplace=True)
+    df['Engine Cylinders'].fillna(4, inplace=True)
+    if 'Market Category' in df.columns:
+        df.drop('Market Category', axis=1, inplace=True)
+    df['Years Of Manufacture'] = 2025 - df['Year']
+    return df
 
 data = load_data()
 
 # ================= MODEL =================
-def train_and_save(data):
+def train_model(data):
     X = data.drop("MSRP", axis=1)
     y = data["MSRP"]
 
@@ -60,98 +137,90 @@ def train_and_save(data):
     return model, encoder
 
 if not os.path.exists(MODEL_PATH):
-    with st.spinner("🔧 Training model for the first time..."):
-        model, encoder = train_and_save(data)
+    with st.spinner("Training model for the first time..."):
+        model, encoder = train_model(data)
 else:
     model = joblib.load(MODEL_PATH)
     encoder = joblib.load(ENCODER_PATH)
 
-# ================= SIDEBAR =================
-st.sidebar.title("🚘 Car Prediction App")
-menu = st.sidebar.radio(
-    "Navigation",
-    ["🏠 Overview", "📊 Data Analysis", "🤖 Price Prediction"]
-)
+# ================= HERO =================
+st.markdown("""
+<div class="hero">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+        <h1>The legacy never fades.</h1>
+        <p>
+        Precision engineering meets machine learning.<br>
+        Predict premium car prices with confidence.
+        </p>
+        <button class="hero-btn">Explore Intelligence</button>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# ================= OVERVIEW =================
-if menu == "🏠 Overview":
-    st.title("🚗 Car Price Prediction Dashboard")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Cars", f"{len(data):,}")
-    c2.metric("Average Price", f"${data['MSRP'].mean():,.0f}")
-    c3.metric("Avg Engine HP", f"{data['Engine HP'].mean():.0f} HP")
-
-    st.markdown("### 📄 Dataset Preview")
-    st.dataframe(data.head(20), use_container_width=True)
-
-# ================= EDA =================
-elif menu == "📊 Data Analysis":
-    st.title("📊 Exploratory Data Analysis")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("#### Average Price by Year")
-        fig, ax = plt.subplots()
-        data.groupby("Year")["MSRP"].mean().plot(ax=ax)
-        st.pyplot(fig)
-
-    with col2:
-        st.markdown("#### Engine Power vs Price")
-        fig, ax = plt.subplots()
-        sns.scatterplot(
-            data=data,
-            x="Engine HP",
-            y="MSRP",
-            alpha=0.4,
-            ax=ax
-        )
-        st.pyplot(fig)
+# ================= INFO SECTION =================
+st.markdown("""
+<div class="section">
+    <div class="cards">
+        <div class="card">
+            <h3>AMG Data</h3>
+            <p>Historical pricing data from premium automotive brands.</p>
+        </div>
+        <div class="card">
+            <h3>Experience AI</h3>
+            <p>Machine learning models trained on real-world car datasets.</p>
+        </div>
+        <div class="card">
+            <h3>Smart Prediction</h3>
+            <p>Instant price estimation using advanced regression models.</p>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ================= PREDICTION =================
-elif menu == "🤖 Price Prediction":
-    st.title("🤖 Predict Car Price")
-    st.caption("Fill in the car specifications to estimate price")
+st.markdown("<div class='section'>", unsafe_allow_html=True)
+st.subheader("🤖 Predict Car Price")
 
-    with st.form("predict_form"):
-        col1, col2 = st.columns(2)
+with st.form("predict_form"):
+    col1, col2 = st.columns(2)
 
-        make = col1.selectbox("Car Brand", sorted(data['Make'].unique()))
-        model_name = col2.selectbox(
-            "Car Model",
-            sorted(data[data['Make'] == make]['Model'].unique())
-        )
+    make = col1.selectbox("Brand", sorted(data['Make'].unique()))
+    model_name = col2.selectbox(
+        "Model",
+        sorted(data[data['Make'] == make]['Model'].unique())
+    )
 
-        hp = col1.slider(
-            "Engine Power (HP)",
-            int(data['Engine HP'].min()),
-            int(data['Engine HP'].max()),
-            int(data['Engine HP'].median())
-        )
+    hp = col1.slider(
+        "Engine Power (HP)",
+        int(data['Engine HP'].min()),
+        int(data['Engine HP'].max()),
+        int(data['Engine HP'].median())
+    )
 
-        year = col2.slider("Year of Manufacture", 1990, 2025, 2015)
+    year = col2.slider("Year of Manufacture", 1990, 2025, 2018)
 
-        submitted = st.form_submit_button("🚀 Predict Price")
+    submit = st.form_submit_button("🚀 Predict")
 
-    if submitted:
-        input_df = data.drop("MSRP", axis=1).iloc[:1].copy()
+if submit:
+    input_df = data.drop("MSRP", axis=1).iloc[:1].copy()
 
-        for col in input_df.columns:
-            if input_df[col].dtype == "object":
-                input_df[col] = data[col].mode()[0]
-            else:
-                input_df[col] = data[col].median()
+    for col in input_df.columns:
+        if input_df[col].dtype == "object":
+            input_df[col] = data[col].mode()[0]
+        else:
+            input_df[col] = data[col].median()
 
-        input_df['Make'] = make
-        input_df['Model'] = model_name
-        input_df['Engine HP'] = hp
-        input_df['Year'] = year
-        input_df['Years Of Manufacture'] = 2025 - year
+    input_df['Make'] = make
+    input_df['Model'] = model_name
+    input_df['Engine HP'] = hp
+    input_df['Year'] = year
+    input_df['Years Of Manufacture'] = 2025 - year
 
-        input_enc = encoder.transform(input_df)
-        input_num = input_enc.select_dtypes(include=np.number)
+    input_enc = encoder.transform(input_df)
+    input_num = input_enc.select_dtypes(include=np.number)
 
-        price = model.predict(input_num)[0]
+    price = model.predict(input_num)[0]
+    st.success(f"💰 Estimated Price: **${price:,.2f}**")
 
-        st.success(f"💰 Estimated Car Price: **${price:,.2f}**")
+st.markdown("</div>", unsafe_allow_html=True)
