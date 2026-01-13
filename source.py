@@ -2,271 +2,172 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import os
 
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor
-from category_encoders import TargetEncoder
-
-# =====================================================
+# =========================
 # PAGE CONFIG
-# =====================================================
+# =========================
 st.set_page_config(
-    page_title="AMG Car Price Intelligence",
+    page_title="Premium Car Price Prediction",
     page_icon="🚗",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
-# =====================================================
-# HERO IMAGE (MÀY YÊU CẦU)
-# =====================================================
-HERO_IMAGE = (
-    "https://img.tripi.vn/cdn-cgi/image/width=1600/"
-    "https://gcs.tripi.vn/public-tripi/tripi-feed/img/482791EyF/anh-mo-ta.png"
-)
-
-# =====================================================
-# CSS – FIX TRẮNG / ĐEN + HERO IMAGE FULL
-# =====================================================
-st.markdown(f"""
+# =========================
+# CUSTOM CSS
+# =========================
+st.markdown("""
 <style>
-.block-container {{
-    padding: 0 !important;
-}}
-
-html, body, [class*="css"] {{
-    font-family: Helvetica, Arial, sans-serif;
-}}
-
-.hero {{
-    position: relative;
-    height: 90vh;
-    width: 100%;
-    background-image: url("{HERO_IMAGE}");
+.hero {
+    background-image: url("https://img.tripi.vn/cdn-cgi/image/width=1600/https://gcs.tripi.vn/public-tripi/tripi-feed/img/482791EyF/anh-mo-ta.png");
     background-size: cover;
-    background-position: center right;
-}}
-
-.hero::before {{
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        to right,
-        rgba(0,0,0,0.75),
-        rgba(0,0,0,0.15)
-    );
-}}
-
-.hero-content {{
-    position: absolute;
-    top: 30%;
-    left: 6%;
-    max-width: 520px;
+    background-position: center;
+    height: 75vh;
+    padding: 80px;
+    display: flex;
+    align-items: center;
+}
+.hero-box {
+    background: rgba(0,0,0,0.55);
+    padding: 50px;
+    max-width: 600px;
+    border-radius: 12px;
+}
+.hero h1 {
     color: white;
-}}
-
-.hero h1 {{
-    font-size: 50px;
-    font-weight: 600;
-    margin-bottom: 18px;
-}}
-
-.hero p {{
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+.hero p {
+    color: #dddddd;
     font-size: 18px;
-    line-height: 1.6;
-    opacity: 0.9;
-}}
-
-.hero-btn {{
-    margin-top: 24px;
-    padding: 14px 34px;
+    margin-bottom: 30px;
+}
+.hero button {
     background: white;
     color: black;
+    padding: 14px 26px;
+    font-size: 16px;
+    border-radius: 6px;
     border: none;
-    font-weight: 600;
-    cursor: pointer;
-}}
-
-.section {{
-    background: #0f0f0f;
-    padding: 70px 6%;
-    color: #e5e5e5;
-}}
-
-.cards {{
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 28px;
-}}
-
-.card {{
-    background: #1c1c1c;
-    padding: 28px;
-    border-radius: 8px;
-}}
-
-.form-box {{
-    background: #1c1c1c;
-    padding: 32px;
-    border-radius: 8px;
-}}
+}
+.section {
+    padding: 60px 0px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# LOAD DATA (GIỮ NGUYÊN)
-# =====================================================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("data.csv")
-
-    df = df[df['highway MPG'] < 60]
-    df = df[df['city mpg'] < 40]
-
-    df['MSRP'] = pd.to_numeric(
-        df['MSRP'].replace('[$,]', '', regex=True),
-        errors='coerce'
-    )
-    df['Engine HP'] = pd.to_numeric(df['Engine HP'], errors='coerce')
-    df.dropna(subset=['Engine HP', 'MSRP'], inplace=True)
-
-    df['Number of Doors'].fillna(df['Number of Doors'].median(), inplace=True)
-    df['Engine Fuel Type'].fillna(df['Engine Fuel Type'].mode()[0], inplace=True)
-    df['Engine Cylinders'].fillna(4, inplace=True)
-
-    if 'Market Category' in df.columns:
-        df.drop('Market Category', axis=1, inplace=True)
-
-    df['Years Of Manufacture'] = 2025 - df['Year']
-    return df
-
-data = load_data()
-
-# =====================================================
-# MODEL (GIỮ NGUYÊN)
-# =====================================================
-MODEL_PATH = "model.pkl"
-ENCODER_PATH = "encoder.pkl"
-
-def train_model(df):
-    X = df.drop("MSRP", axis=1)
-    y = df["MSRP"]
-
-    X_train, _, y_train, _ = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    encoder = TargetEncoder(cols=["Make", "Model"])
-    X_train_enc = encoder.fit_transform(X_train, y_train)
-    X_train_num = X_train_enc.select_dtypes(include=np.number)
-
-    model = GradientBoostingRegressor(random_state=42)
-    model.fit(X_train_num, y_train)
-
-    joblib.dump(model, MODEL_PATH)
-    joblib.dump(encoder, ENCODER_PATH)
-    return model, encoder
-
-if not os.path.exists(MODEL_PATH):
-    model, encoder = train_model(data)
-else:
-    model = joblib.load(MODEL_PATH)
-    encoder = joblib.load(ENCODER_PATH)
-
-# =====================================================
-# HERO SECTION (ĐÃ FIX TRỐNG ĐEN)
-# =====================================================
-st.markdown(f"""
+# =========================
+# HERO SECTION
+# =========================
+st.markdown("""
 <div class="hero">
-    <div class="hero-content">
+    <div class="hero-box">
         <h1>The legacy never fades.</h1>
         <p>
             Precision engineering meets machine intelligence.<br>
             Predict premium automobile prices with confidence.
         </p>
-        <button class="hero-btn">Explore Intelligence</button>
+        <a href="#predict">
+            <button>Explore Intelligence</button>
+        </a>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# PREDICTION FORM (FULL COLUMNS)
-# =====================================================
-st.markdown("<div class='section'>", unsafe_allow_html=True)
-st.subheader("🤖 Price Prediction")
+# =========================
+# LOAD MODEL & DATA
+# =========================
+@st.cache_resource
+def load_assets():
+    model = joblib.load("model.pkl")
+    encoder = joblib.load("encoder.pkl")
+    data = pd.read_csv("data.csv")
+    return model, encoder, data
 
-with st.form("prediction_form"):
-    st.markdown("<div class='form-box'>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
+model, encoder, data = load_assets()
 
-    make = c1.selectbox("Make", sorted(data["Make"].unique()))
-    model_name = c2.selectbox(
-        "Model", sorted(data[data["Make"] == make]["Model"].unique())
-    )
-    year = c3.slider("Year", 1990, 2025, 2018)
+# =========================
+# PREDICTION FORM
+# =========================
+st.markdown("<div id='predict'></div>", unsafe_allow_html=True)
+st.markdown("## 🚘 Vehicle Specification")
 
-    engine_fuel = c1.selectbox(
-        "Engine Fuel Type", sorted(data["Engine Fuel Type"].unique())
-    )
-    engine_hp = c2.slider(
-        "Engine HP", int(data["Engine HP"].min()),
-        int(data["Engine HP"].max()),
-        int(data["Engine HP"].median())
-    )
-    engine_cyl = c3.selectbox(
-        "Engine Cylinders", sorted(data["Engine Cylinders"].unique())
-    )
+with st.form("car_form"):
+    col1, col2, col3 = st.columns(3)
 
-    highway_mpg = c1.slider(
-        "Highway MPG",
-        int(data["highway MPG"].min()),
-        int(data["highway MPG"].max()),
-        int(data["highway MPG"].median())
-    )
-    city_mpg = c2.slider(
-        "City MPG",
-        int(data["city mpg"].min()),
-        int(data["city mpg"].max()),
-        int(data["city mpg"].median())
-    )
-    popularity = c3.slider(
-        "Popularity",
-        int(data["Popularity"].min()),
-        int(data["Popularity"].max()),
-        int(data["Popularity"].median())
-    )
+    with col1:
+        make = st.selectbox("Make", sorted(data["Make"].unique()))
+        model_name = st.text_input("Model")
+        year = st.slider("Year", 1990, 2025, 2018)
+        engine_fuel = st.selectbox("Engine Fuel Type", data["Engine Fuel Type"].dropna().unique())
 
-    submit = st.form_submit_button("🚀 Predict Price")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with col2:
+        engine_hp = st.number_input("Engine HP", 50, 1500, 250)
+        engine_cyl = st.selectbox("Engine Cylinders", sorted(data["Engine Cylinders"].dropna().unique()))
+        transmission = st.selectbox("Transmission Type", data["Transmission Type"].dropna().unique())
+        driven_wheels = st.selectbox("Driven Wheels", data["Driven_Wheels"].dropna().unique())
 
+    with col3:
+        doors = st.selectbox("Number of Doors", sorted(data["Number of Doors"].dropna().unique()))
+        vehicle_size = st.selectbox("Vehicle Size", data["Vehicle Size"].dropna().unique())
+        vehicle_style = st.selectbox("Vehicle Style", data["Vehicle Style"].dropna().unique())
+        market_category = st.selectbox("Market Category", data["Market Category"].dropna().unique())
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+        highway_mpg = st.number_input("Highway MPG", 5, 80, 30)
+        city_mpg = st.number_input("City MPG", 5, 60, 22)
+
+    with col5:
+        popularity = st.slider("Popularity", 1, 5000, 1000)
+
+    with col6:
+        msrp = st.number_input("MSRP (optional)", 0, 500000, 30000)
+
+    submit = st.form_submit_button("🔮 Predict Price")
+
+# =========================
+# PREDICTION LOGIC (FIXED)
+# =========================
 if submit:
-    input_df = data.drop("MSRP", axis=1).iloc[:1].copy()
-
-    for col in input_df.columns:
-        if input_df[col].dtype == "object":
-            input_df[col] = data[col].mode()[0]
-        else:
-            input_df[col] = data[col].median()
-
-    input_df.update({
+    input_df = pd.DataFrame([{
         "Make": make,
         "Model": model_name,
         "Year": year,
         "Engine Fuel Type": engine_fuel,
         "Engine HP": engine_hp,
         "Engine Cylinders": engine_cyl,
+        "Transmission Type": transmission,
+        "Driven_Wheels": driven_wheels,
+        "Number of Doors": doors,
+        "Market Category": market_category,
+        "Vehicle Size": vehicle_size,
+        "Vehicle Style": vehicle_style,
         "highway MPG": highway_mpg,
         "city mpg": city_mpg,
         "Popularity": popularity,
+        "MSRP": msrp,
         "Years Of Manufacture": 2025 - year
-    })
+    }])
 
-    price = model.predict(
-        encoder.transform(input_df).select_dtypes(include=np.number)
-    )[0]
+    input_encoded = encoder.transform(input_df)
+    input_encoded = input_encoded.select_dtypes(include=np.number)
 
-    st.success(f"💰 Estimated Price: **${price:,.2f}**")
+    prediction = model.predict(input_encoded)[0]
 
-st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("## 💰 Estimated Vehicle Price")
+    st.success(f"${prediction:,.2f}")
+
+# =========================
+# FOOTER
+# =========================
+st.markdown("""
+<hr>
+<center>
+<p style="color:gray">
+© 2026 Premium Automotive Intelligence • Built with Streamlit & Machine Learning
+</p>
+</center>
+""", unsafe_allow_html=True)
