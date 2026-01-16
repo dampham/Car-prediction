@@ -1,207 +1,242 @@
+# ================================
+# IMPORT THƯ VIỆN
+# ================================
+
+# Streamlit: dùng để xây dựng web application cho Machine Learning
 import streamlit as st
+
+# Pandas & Numpy: xử lý dữ liệu dạng bảng và số học
 import pandas as pd
 import numpy as np
+
+# Thư viện vẽ biểu đồ
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# Joblib: lưu và load mô hình Machine Learning
 import joblib
+
+# OS: làm việc với file và thư mục
 import os
 
+# Chia tập dữ liệu train/test
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
+
+# Các mô hình Machine Learning
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+# Encoder cho dữ liệu dạng category (Make, Model)
 from category_encoders import TargetEncoder
 
-# =====================================================
-# PAGE CONFIG
-# =====================================================
+# ================================
+# CẤU HÌNH GIAO DIỆN WEB
+# ================================
+
+# Thiết lập tiêu đề và layout toàn màn hình
 st.set_page_config(
     page_title="Car Price Prediction",
     layout="wide"
 )
 
-# =====================================================
-# PATHS
-# =====================================================
-MODEL_DIR = "models"
-ENCODER_PATH = os.path.join(MODEL_DIR, "encoder.pkl")
+# Đường dẫn lưu model và encoder
+MODEL_PATH = "model.pkl"
+ENCODER_PATH = "encoder.pkl"
 
-MODEL_PATHS = {
-    "Gradient Boosting (Main)": os.path.join(MODEL_DIR, "gbr.pkl"),
-    "Linear Regression (Baseline)": os.path.join(MODEL_DIR, "linear.pkl"),
-    "Ridge Regression": os.path.join(MODEL_DIR, "ridge.pkl"),
-    "Lasso Regression": os.path.join(MODEL_DIR, "lasso.pkl"),
-    "Random Forest": os.path.join(MODEL_DIR, "rf.pkl"),
-}
+# ================================
+# LOAD & TIỀN XỬ LÝ DỮ LIỆU
+# ================================
 
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-# =====================================================
-# LOAD DATA (KEEP ORIGINAL LOGIC)
-# =====================================================
 @st.cache_data
 def load_data():
+    """
+    Hàm load dữ liệu từ file CSV và thực hiện tiền xử lý.
+    @st.cache_data giúp Streamlit không load lại dữ liệu nhiều lần.
+    """
+
+    # Kiểm tra file dữ liệu có tồn tại hay không
+    if not os.path.exists("data.csv"):
+        st.error("Không tìm thấy file data.csv")
+        return pd.DataFrame()
+
+    # Đọc dữ liệu
     data = pd.read_csv("data.csv")
 
+    # Loại bỏ các giá trị MPG bất thường (outliers)
     data = data[data["highway MPG"] < 60]
     data = data[data["city mpg"] < 40]
 
+    # Chuyển cột MSRP từ dạng chuỗi ($, ,) sang số
     data["MSRP"] = pd.to_numeric(
         data["MSRP"].replace("[$,]", "", regex=True),
         errors="coerce"
     )
 
+    # Chuyển Engine HP sang dạng số
     data["Engine HP"] = pd.to_numeric(data["Engine HP"], errors="coerce")
+
+    # Loại bỏ các dòng bị thiếu giá hoặc mã lực
     data = data.dropna(subset=["Engine HP", "MSRP"])
 
+    # Điền giá trị thiếu
     data["Number of Doors"].fillna(data["Number of Doors"].median(), inplace=True)
     data["Engine Fuel Type"].fillna(data["Engine Fuel Type"].mode()[0], inplace=True)
     data["Engine Cylinders"].fillna(4, inplace=True)
 
+    # Loại bỏ cột Market Category nếu tồn tại
     if "Market Category" in data.columns:
         data.drop(columns=["Market Category"], inplace=True)
 
+    # Tạo feature mới: số năm đã sử dụng của xe
     data["Years Of Manufacture"] = 2025 - data["Year"]
+
     return data
 
+
+# Load dữ liệu khi khởi động app
 data = load_data()
 
-# =====================================================
-# TRAIN ALL MODELS (ADD ONLY)
-# =====================================================
-def train_models(data):
+# ================================
+# HUẤN LUYỆN VÀ LƯU MÔ HÌNH
+# ================================
+
+def train_and_save_model(data):
+    """
+    Hàm huấn luyện mô hình Gradient Boosting và lưu model + encoder.
+    """
+
+    # Tách đặc trưng (X) và biến mục tiêu (y)
     X = data.drop("MSRP", axis=1)
     y = data["MSRP"]
 
-    X_train, _, y_train, _ = train_test_split(
+    # Chia tập train/test
+    X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=100
     )
 
+    # Target Encoding cho các biến phân loại
     encoder = TargetEncoder(cols=["Make", "Model"])
     X_train_enc = encoder.fit_transform(X_train, y_train)
+
+    # Chỉ giữ lại các cột số (model ML chỉ học số)
     X_train_num = X_train_enc.select_dtypes(include=[np.number])
 
-    models = {
-        "Gradient Boosting (Main)": GradientBoostingRegressor(
-            n_estimators=100, random_state=100
-        ),
-        "Linear Regression (Baseline)": LinearRegression(),
-        "Ridge Regression": Ridge(alpha=1.0),
-        "Lasso Regression": Lasso(alpha=0.001),
-        "Random Forest": RandomForestRegressor(
-            n_estimators=200, random_state=100, n_jobs=-1
-        ),
-    }
+    # Khởi tạo mô hình Gradient Boosting
+    model = GradientBoostingRegressor(
+        n_estimators=100,
+        random_state=100
+    )
 
-    for name, model in models.items():
-        model.fit(X_train_num, y_train)
-        joblib.dump(model, MODEL_PATHS[name])
+    # Huấn luyện mô hình
+    model.fit(X_train_num, y_train)
 
+    # Lưu model và encoder
+    joblib.dump(model, MODEL_PATH)
     joblib.dump(encoder, ENCODER_PATH)
 
-# =====================================================
-# FIRST RUN TRAINING
-# =====================================================
-if not os.path.exists(ENCODER_PATH):
-    with st.status("Training models for the first time..."):
-        train_models(data)
-        st.success("Models trained successfully")
+    return model, encoder
 
-encoder = joblib.load(ENCODER_PATH)
 
-@st.cache_resource
-def load_models():
-    return {name: joblib.load(path) for name, path in MODEL_PATHS.items()}
+# Nếu chưa có model thì train
+if not os.path.exists(MODEL_PATH):
+    with st.status("Training model for the first time..."):
+        model, encoder = train_and_save_model(data)
+        st.success("Model trained and saved successfully!")
+else:
+    # Nếu đã có model thì load
+    model = joblib.load(MODEL_PATH)
+    encoder = joblib.load(ENCODER_PATH)
 
-models = load_models()
+# ================================
+# GIAO DIỆN CHÍNH
+# ================================
 
-# =====================================================
-# HERO IMAGE
-# =====================================================
-st.markdown("""
-<style>
-.hero {
-    background-image: url("https://img.tripi.vn/cdn-cgi/image/width=1600/https://gcs.tripi.vn/public-tripi/tripi-feed/img/482791EyF/anh-mo-ta.png");
-    background-size: cover;
-    background-position: center;
-    height: 90vh;
-}
-</style>
-<div class="hero"></div>
-""", unsafe_allow_html=True)
+st.title("🚗 Car Price Prediction System")
 
-# =====================================================
-# NAVIGATION
-# =====================================================
-menu = st.sidebar.radio(
+# Thanh menu bên trái
+menu = st.sidebar.selectbox(
     "Navigation",
     ["Home", "Dataset Overview", "EDA", "Prediction"]
 )
 
-# =====================================================
+# ================================
 # HOME
-# =====================================================
+# ================================
+
 if menu == "Home":
-    st.title("Car Price Prediction System")
-    st.write(
-        "Predict car prices using multiple machine learning models "
-        "trained on historical vehicle data."
-    )
+    st.markdown("""
+    ### Welcome to Car Price Prediction System
+    This system applies machine learning techniques to predict car prices
+    based on technical specifications and historical data.
+    """)
 
-# =====================================================
-# DATASET OVERVIEW + FILTER
-# =====================================================
+# ================================
+# DATASET OVERVIEW
+# ================================
+
 elif menu == "Dataset Overview":
-    st.header("Dataset Overview")
+    st.subheader("Dataset Preview")
 
-    with st.expander("Filter columns"):
-        selected_cols = st.multiselect(
-            "Select columns",
-            data.columns.tolist(),
-            default=data.columns.tolist()
-        )
+    # Cho phép người dùng chọn cột để hiển thị
+    selected_cols = st.multiselect(
+        "Select columns to display",
+        data.columns.tolist(),
+        default=data.columns.tolist()
+    )
 
     st.dataframe(data[selected_cols])
 
-# =====================================================
+# ================================
 # EDA
-# =====================================================
-elif menu == "EDA":
-    st.header("Exploratory Data Analysis")
+# ================================
 
-    fig, ax = plt.subplots(1, 2, figsize=(16, 5))
-    data.groupby("Year")["MSRP"].mean().plot(kind="bar", ax=ax[0])
-    sns.scatterplot(data=data, x="Engine HP", y="MSRP", ax=ax[1], alpha=0.4)
+elif menu == "EDA":
+    st.subheader("Exploratory Data Analysis")
+
+    fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+
+    # Giá trung bình theo năm
+    data.groupby("Year")["MSRP"].mean().plot(
+        kind="bar", ax=ax[0], title="Average Price by Year"
+    )
+
+    # Quan hệ HP và giá
+    sns.scatterplot(
+        data=data,
+        x="Engine HP",
+        y="MSRP",
+        ax=ax[1],
+        alpha=0.5
+    )
+
     st.pyplot(fig)
 
-# =====================================================
+# ================================
 # PREDICTION
-# =====================================================
+# ================================
+
 elif menu == "Prediction":
-    st.header("Car Price Prediction")
+    st.subheader("Car Price Prediction")
 
     with st.form("prediction_form"):
         col1, col2 = st.columns(2)
 
-        model_choice = col1.selectbox(
-            "Select Model",
-            list(models.keys())
-        )
+        # Người dùng chọn hãng xe
+        make = col1.selectbox("Car Make", sorted(data["Make"].unique()))
 
-        make = col1.selectbox(
-            "Car Make",
-            sorted(data["Make"].unique())
-        )
-
+        # Model phụ thuộc vào hãng
         model_name = col2.selectbox(
             "Car Model",
             sorted(data[data["Make"] == make]["Model"].unique())
         )
 
+        # Nhập mã lực
         hp = col1.number_input(
-            "Horsepower (HP)",
+            "Engine Horsepower",
             value=int(data["Engine HP"].median())
         )
 
+        # Nhập năm sản xuất
         year = col2.number_input(
             "Year of Manufacture",
             min_value=1990,
@@ -212,34 +247,27 @@ elif menu == "Prediction":
         submit = st.form_submit_button("Predict Price")
 
     if submit:
+        # Tạo một dòng dữ liệu mẫu có đủ cột
         input_df = data.drop("MSRP", axis=1).iloc[:1].copy()
 
+        # Điền giá trị mặc định để tránh lỗi thiếu cột
         for col in input_df.columns:
             if input_df[col].dtype == "object":
                 input_df[col] = data[col].mode()[0]
             else:
                 input_df[col] = data[col].median()
 
+        # Ghi đè giá trị người dùng nhập
         input_df["Make"] = make
         input_df["Model"] = model_name
         input_df["Engine HP"] = hp
         input_df["Year"] = year
         input_df["Years Of Manufacture"] = 2025 - year
 
+        # Encode và predict
         input_enc = encoder.transform(input_df)
         input_num = input_enc.select_dtypes(include=[np.number])
 
-        prediction = models[model_choice].predict(input_num)[0]
+        prediction = model.predict(input_num)[0]
 
-        st.success(
-            f"Predicted price using **{model_choice}**: "
-            f"${prediction:,.2f}"
-        )
-
-# =====================================================
-# FOOTER
-# =====================================================
-st.markdown(
-    "<hr><center style='color:gray'>© 2026 Car Price Prediction</center>",
-    unsafe_allow_html=True
-)
+        st.success(f"Estimated Car Price: ${prediction:,.2f}")
