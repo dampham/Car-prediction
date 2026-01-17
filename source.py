@@ -106,7 +106,7 @@ def load_data():
         data.drop(columns=["Market Category"], inplace=True)
 
     # Tạo feature mới: số năm xe đã sử dụng
-    data["Years Of Manufacture"] = 2025 - data["Year"]
+    data["Years"] = 2025 - data["Year"]
 
     return data
 
@@ -300,7 +300,7 @@ elif menu == "Prediction":
 
         # Nhập năm sản xuất
         year = col2.number_input(
-            "Year of Manufacture",
+            "Year",
             min_value=1990,
             max_value=2025,
             value=2015
@@ -324,7 +324,7 @@ elif menu == "Prediction":
         input_df["Model"] = model_name
         input_df["Engine HP"] = hp
         input_df["Year"] = year
-        input_df["Years Of Manufacture"] = 2025 - year
+        input_df["Years"] = 2025 - year
 
         # Encode dữ liệu
         input_enc = encoder.transform(input_df)
@@ -347,3 +347,4 @@ st.markdown(
     "<hr><center style='color:gray'>© 2026 Car Price Prediction</center>",
     unsafe_allow_html=True
 )
+
